@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GT Recipe Book</title>
+<meta name="theme-color" content="#f2f5f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1614" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recipes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;padding:0}
+[hidden]:not([hidden=until-found i]){display:none!important}
+</style>
+<style>
+/* Layout: two panes (searchable index left, recipe card right); on phones the index and the card swap. */
+:root{
+  --bg:#f2f5f4; --panel:#ffffff; --ink:#13201d; --mute:#5b6b67; --line:#d9e1de;
+  --accent:#0d6b5f; --accent-ink:#ffffff; --prep:#a85a00; --prep-bg:#fbeedb; --hover:#e6efec;
+  --f-display:"Archivo","Helvetica Neue",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1614; --panel:#16211e; --ink:#e7efec; --mute:#92a49f; --line:#2a3a36;
+  --accent:#4fc4b0; --accent-ink:#06211c; --prep:#f0b05c; --prep-bg:#3a2a12; --hover:#1f2e2a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1614; --panel:#16211e; --ink:#e7efec; --mute:#92a49f; --line:#2a3a36;
+  --accent:#4fc4b0; --accent-ink:#06211c; --prep:#f0b05c; --prep-bg:#3a2a12; --hover:#1f2e2a; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);
+  padding-block:0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.app{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:20px;height:100%;padding-block:16px;max-width:1200px;margin:0 auto}
+.index,.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;min-height:0}
+.index{display:flex;flex-direction:column;overflow:hidden}
+.ihead{padding:14px 14px 10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.brand{font:800 18px/1.1 var(--f-display);letter-spacing:.01em;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.brand small{font:500 12px var(--f-body);color:var(--mute)}
+input[type=search],input[type=number]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:9px 10px;width:100%;min-width:0}
+input:focus-visible,button:focus-visible,a:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 13px var(--f-body);border:1px solid var(--line);background:transparent;color:var(--ink);padding:4px 10px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.list{overflow-y:auto;flex:1;min-height:0;padding-bottom:8px}
+.letter{font:700 11px var(--f-display);letter-spacing:.12em;color:var(--mute);padding:12px 14px 4px;text-transform:uppercase}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:baseline;padding:7px 14px;color:var(--ink);text-decoration:none;cursor:pointer;border-left:3px solid transparent}
+.row:hover{background:var(--hover)}
+.row[aria-current=true]{background:var(--hover);border-left-color:var(--accent);font-weight:600}
+.row span:first-child{min-width:0;overflow-wrap:anywhere}
+.tag{font:600 10px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--prep);background:var(--prep-bg);padding:2px 6px;border-radius:3px;white-space:nowrap}
+.hit{display:block;font-size:12px;color:var(--mute);font-weight:400}
+.cnt{font:500 12px var(--f-mono);color:var(--mute);white-space:nowrap}
+.empty{padding:24px 14px;color:var(--mute)}
+.card{overflow-y:auto;padding:22px 26px}
+.back{display:none;font:500 14px var(--f-body);color:var(--accent);background:none;border:0;padding:0 0 12px;cursor:pointer}
+.kicker{display:flex;gap:10px;align-items:center;color:var(--mute);font:500 12px var(--f-body);letter-spacing:.08em;text-transform:uppercase}
+h1{font:800 clamp(26px,4vw,38px)/1.08 var(--f-display);margin:6px 0 4px;text-wrap:balance;overflow-wrap:anywhere}
+.makes{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:end;margin:16px 0 8px;padding:12px 0;border-block:1px solid var(--line)}
+.stat b{display:block;font:500 22px var(--f-mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.scale{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.scale label{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em;margin-right:2px}
+.scale input{width:76px;font-family:var(--f-mono)}
+h2{font:700 13px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:22px 0 6px}
+table{border-collapse:collapse;width:100%}
+td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:baseline}
+td.q{text-align:right;font:500 15px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;width:1%;padding-right:10px}
+td.u{font:400 13px var(--f-mono);color:var(--mute);white-space:nowrap;width:1%;padding-right:14px}
+td a{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+td.n{overflow-wrap:anywhere}
+.sub{display:block;font-size:12px;color:var(--mute)}
+.used{display:flex;flex-wrap:wrap;gap:6px}
+.used a{font-size:13px;border:1px solid var(--line);border-radius:4px;padding:3px 8px;color:var(--accent);text-decoration:none}
+.used a:hover{background:var(--hover)}
+@media (max-width:859px){
+  html,body{height:auto}
+  .app{display:block;height:auto;padding-block:12px}
+  .index{height:calc(100vh - 24px);height:calc(100dvh - 24px)}
+  .card{display:none;padding:16px}
+  body.show .index{display:none}
+  body.show .card{display:block}
+  .back{display:block}
+  .scale{margin-left:0}
+}
+@media (prefers-reduced-motion:no-preference){.row{transition:background .12s}}
+
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 4px}
+.btn{font:600 14px var(--f-body);border:1px solid var(--line);background:transparent;color:var(--ink);padding:7px 14px;border-radius:4px;cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.warn{color:var(--prep);border-color:var(--prep)}
+.btn.sm{padding:4px 9px;font-size:13px}
+.btn:disabled{opacity:.55;cursor:default}
+.edited{color:var(--mute);font-size:12px;text-transform:none;letter-spacing:0}
+.dot{font:600 10px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);padding:1px 5px;border-radius:3px;white-space:nowrap}
+ol.method{margin:0;padding-left:0;list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:12px}
+ol.method li{counter-increment:s;display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:start;overflow-wrap:anywhere;white-space:pre-wrap}
+ol.method li::before{content:counter(s);font:500 15px var(--f-mono);color:var(--accent);border:1px solid var(--line);border-radius:50%;width:30px;height:30px;display:grid;place-items:center}
+.nomethod{color:var(--mute)}
+.erow{display:grid;grid-template-columns:78px 92px minmax(0,1fr) auto;gap:6px;margin-bottom:6px;align-items:center}
+.erow input,.erow select,.edit textarea,.edit select,.eb input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px;min-width:0;width:100%}
+.erow input.q{font-family:var(--f-mono);text-align:right}
+.steprow{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;margin-bottom:8px;align-items:start}
+.steprow .no{font:500 15px var(--f-mono);color:var(--accent);padding-top:8px;text-align:center}
+.edit textarea{resize:vertical;min-height:64px;line-height:1.45}
+.mv{display:flex;flex-direction:column;gap:4px}
+.eb{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:12px 0 0}
+.eb label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.eb input{width:110px;font-family:var(--f-mono)}
+.hint{font-size:12px;color:var(--mute);margin:4px 0 8px}
+.err{color:var(--prep);font-weight:600;margin:10px 0 0}
+.savebar{position:sticky;bottom:-22px;background:var(--panel);border-top:1px solid var(--line);margin:22px -26px -22px;padding:12px 26px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (max-width:859px){.savebar{margin:18px -16px -16px;padding:12px 16px;bottom:-16px}}
+@media (max-width:560px){.erow{grid-template-columns:78px minmax(0,1fr) auto}.erow .nm{grid-column:1 / -1;grid-row:2}.erow .xx{grid-column:3;grid-row:1}.erow .un{grid-column:2;grid-row:1}}
+
+.note{padding:8px 14px;font-size:12px;color:var(--prep);background:var(--prep-bg);border-top:1px solid var(--line)}
+.foot{border-top:1px solid var(--line);padding:8px 14px}
+.foot summary{cursor:pointer;font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.footbtns{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+.foot .hint{margin:6px 0 0}
+</style>
+</head><body>
+<div class="app">
+  <nav class="index" aria-label="Recipes">
+    <div class="ihead">
+      <div class="brand">Recipe Book <small id="count"></small></div>
+      <input type="search" id="q" placeholder="Search dish or ingredient" autocomplete="off" aria-label="Search recipes">
+      <div class="chips" role="group" aria-label="Filter">
+        <button class="chip" data-f="all" aria-pressed="true">All</button>
+        <button class="chip" data-f="Dish" aria-pressed="false">Dishes</button>
+        <button class="chip" data-f="Prep" aria-pressed="false">Prep</button>
+        <button class="chip" data-f="Ing" aria-pressed="false">Ingredients</button>
+      </div>
+      <button class="btn pri" id="new">+ New recipe</button>
+    </div>
+    <div class="list" id="list"></div>
+    <div id="note" class="note" hidden></div>
+    <details class="foot"><summary>Backup &amp; data</summary>
+      <div class="footbtns">
+        <button class="btn sm" id="exp">Export backup</button>
+        <button class="btn sm" id="imp">Import backup</button>
+      </div>
+      <p class="hint" id="foothint"></p>
+      <input type="file" id="file" accept="application/json,.json" hidden>
+    </details>
+  </nav>
+  <main class="card" id="card" aria-live="polite"></main>
+</div>
+
+<script>
+// ---- Ids ---------------------------------------------------------------------------------------
+// Every recipe and ingredient has a permanent random id (UUID). A name is only a label, so renaming never
+// changes identity, and the same item arriving from another device or backup is matched by id, never by name.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function uuid(){
+  const b = new Uint8Array(16);
+  if (self.crypto && crypto.getRandomValues) crypto.getRandomValues(b); else for (let i=0;i<16;i++) b[i] = Math.floor(Math.random()*256);
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = Array.from(b, x => x.toString(16).padStart(2,'0'));
+  return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('');
+}
+// Earlier versions used name-based ids. Those are converted to permanent ids by hashing (UUIDv5), so the same old
+// name gives the same id on every device. The app itself carries no recipe or ingredient data.
+const NS_BYTES = [0x6f,0x1c,0x1a,0x52,0x7d,0x0e,0x4c,0x55,0x9b,0x0a,0x5a,0x7b,0x1f,0x3c,0x9e,0x11];
+function sha1(bytes){
+  const l = bytes.length, n = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(n);
+  m.set(bytes); m[l] = 0x80;
+  const dv = new DataView(m.buffer); dv.setUint32(n-4, (l*8) >>> 0); dv.setUint32(n-8, Math.floor(l*8/4294967296));
+  let h0=0x67452301, h1=0xEFCDAB89|0, h2=0x98BADCFE|0, h3=0x10325476, h4=0xC3D2E1F0|0;
+  const w = new Int32Array(80), rol = (x,c) => (x<<c)|(x>>>(32-c));
+  for (let o=0; o<n; o+=64){
+    for (let i=0;i<16;i++) w[i] = dv.getInt32(o+i*4);
+    for (let i=16;i<80;i++) w[i] = rol(w[i-3]^w[i-8]^w[i-14]^w[i-16], 1);
+    let a=h0,b=h1,c=h2,d=h3,e=h4;
+    for (let i=0;i<80;i++){
+      let f,k;
+      if (i<20){ f=(b&c)|(~b&d); k=0x5A827999; } else if (i<40){ f=b^c^d; k=0x6ED9EBA1; }
+      else if (i<60){ f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC|0; } else { f=b^c^d; k=0xCA62C1D6|0; }
+      const t = (rol(a,5)+f+e+k+w[i])|0; e=d; d=c; c=rol(b,30); b=a; a=t;
+    }
+    h0=(h0+a)|0; h1=(h1+b)|0; h2=(h2+c)|0; h3=(h3+d)|0; h4=(h4+e)|0;
+  }
+  const out = new Uint8Array(20), ov = new DataView(out.buffer);
+  [h0,h1,h2,h3,h4].forEach((x,i) => ov.setInt32(i*4, x)); return out;
+}
+function uuid5(name){
+  const nb = new TextEncoder().encode(name), inp = new Uint8Array(16 + nb.length);
+  inp.set(NS_BYTES); inp.set(nb, 16);
+  const b = sha1(inp).slice(0,16); b[6] = (b[6] & 15) | 80; b[8] = (b[8] & 63) | 128;
+  const h = Array.from(b, x => x.toString(16).padStart(2,'0'));
+  return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('');
+}
+
+// ---- Cleaning and conversion -------------------------------------------------------------------
+const KINDS = ['Dish','Prep'], BATCH_UNITS = ['PORTION','KG','LTR'], LINE_UNITS = ['GMS','ML','NOS','PORTION'];
+const num = v => typeof v === 'number' && isFinite(v) ? v : null;
+const okKey = k => typeof k === 'string' && k.length > 0 && k.length <= 100 && !k.includes('/');
+function cleanIng(v){
+  if (!v || typeof v.name !== 'string' || !v.name.trim()) return null;
+  const o = {name: v.name.trim().replace(/\s+/g,' ').slice(0,200), updatedAt: num(v.updatedAt) || 0};
+  if (v.deleted === true) o.deleted = true; return o;
+}
+function cleanRecipe(r){
+  if (!r || typeof r.name !== 'string' || !r.name.trim() || !Array.isArray(r.ings)) return null;
+  const ings = [];
+  for (const x of r.ings){
+    if (!x || (x.t !== 'i' && x.t !== 'r') || typeof x.id !== 'string' || !x.id) return null;
+    ings.push({t:x.t, id:x.id, q:num(x.q), u:LINE_UNITS.includes(x.u) ? x.u : 'GMS'});
+  }
+  const o = {name: r.name.trim().replace(/\s+/g,' ').slice(0,200), kind: KINDS.includes(r.kind) ? r.kind : 'Dish',
+    batch: num(r.batch), bu: BATCH_UNITS.includes(r.bu) ? r.bu : 'PORTION', ings,
+    method: (Array.isArray(r.method) ? r.method : []).filter(s => typeof s === 'string').slice(0,300),
+    editedAt: num(r.editedAt) || 0, updatedAt: num(r.updatedAt) || 0};
+  if (r.deleted === true) o.deleted = true; return o;
+}
+// Data that uses name-based ids -> permanent ids, with every reference rewritten to match.
+function toV3(d){
+  const mapR = {}, mapI = {};
+  const idR = k => UUID_RE.test(k) ? k : (mapR[k] = mapR[k] || uuid5('recipe:'+k));
+  const idI = k => UUID_RE.test(k) ? k : (mapI[k] = mapI[k] || uuid5('ingredient:'+k));
+  const out = {recipes:{}, ingredients:{}};
+  for (const [k,v] of Object.entries(d.ingredients || {}))
+    out.ingredients[idI(k)] = Object.assign({}, v, {updatedAt: Math.max(+(v && v.updatedAt)||0, +(v && v.editedAt)||0)});
+  for (const [k,v] of Object.entries(d.recipes || {})){
+    if (!v || !Array.isArray(v.ings)) continue;
+    out.recipes[idR(k)] = Object.assign({}, v, {
+      ings: v.ings.map(x => x && typeof x === 'object' ? Object.assign({}, x, {id: x.t === 'r' ? idR(String(x.id)) : idI(String(x.id))}) : x),
+      updatedAt: Math.max(+v.updatedAt||0, +v.editedAt||0)});
+  }
+  return out;
+}
+function sanitizeAll(src){
+  const data = {recipes:{}, ingredients:{}}; let skipped = 0;
+  for (const [k,v] of Object.entries(src.ingredients || {})){ const c = okKey(k) && cleanIng(v); if (c) data.ingredients[k] = c; else skipped++; }
+  for (const [k,v] of Object.entries(src.recipes || {})){ const c = okKey(k) && cleanRecipe(v); if (c) data.recipes[k] = c; else skipped++; }
+  return {data, skipped};
+}
+const hasLegacyKeys = d => ['recipes','ingredients'].some(n => Object.keys(d[n] || {}).some(k => !UUID_RE.test(k)));
+
+// Merge a backup into the data already here. Items are matched by id; the most recently changed copy wins;
+// anything that exists only here is kept. Deletions travel as "tombstones" (the item marked deleted).
+function mergeInto(cur, d){
+  const NAMES = ['recipes','ingredients'], norm = s => s.trim().replace(/\s+/g,' ').toUpperCase();
+  const {data: inc, skipped} = sanitizeAll(+d.version >= 3 ? d : toV3(d));
+  const stats = {recipes:{added:0,updated:0,older:0}, ingredients:{added:0,updated:0,older:0}, restored:0, conflicts:0, skipped};
+  const next = {recipes:Object.assign({}, cur.recipes), ingredients:Object.assign({}, cur.ingredients)};
+  const changed = {recipes:new Set(), ingredients:new Set()}, added = {recipes:new Set(), ingredients:new Set()};
+  for (const n of NAMES) for (const [id,v] of Object.entries(inc[n])){
+    const here = next[n][id];
+    if (!here){ next[n][id] = v; changed[n].add(id); if (!v.deleted){ stats[n].added++; added[n].add(id); } }
+    else if (v.updatedAt > here.updatedAt){ next[n][id] = v; changed[n].add(id); stats[n].updated++; }
+    else if (v.updatedAt < here.updatedAt) stats[n].older++;
+  }
+  // A live recipe must never point at something marked deleted: bring that item back.
+  for (let again = true; again;){
+    again = false;
+    for (const r of Object.values(next.recipes)){ if (r.deleted) continue;
+      for (const x of r.ings){ const n = x.t === 'r' ? 'recipes' : 'ingredients', t = next[n][x.id];
+        if (t && t.deleted){ const c = Object.assign({}, t, {updatedAt: Date.now()}); delete c.deleted; next[n][x.id] = c; changed[n].add(x.id); stats.restored++; again = true; } } }
+  }
+  for (const n of NAMES){ const g = {};
+    for (const [id,v] of Object.entries(next[n])) if (!v.deleted) (g[norm(v.name)] = g[norm(v.name)] || []).push(id);
+    for (const ids of Object.values(g)) if (ids.length > 1 && ids.some(i => added[n].has(i))) stats.conflicts++; }
+  return {next, changed, stats};
+}
+
+// ---- Storage -----------------------------------------------------------------------------------
+// The page contains no recipe data. It uses one of two places:
+//  1. server mode: the local server (server.py) keeps everything in data/recipes.json and every device sees the same data;
+//  2. local mode: no server found (static hosting or opened as a file), so recipes live in this browser's IndexedDB.
+// Both expose the same small API the app uses: collection(n).onSnapshot, doc('col/id').set/delete, exportAll, importData.
+const Store = (() => {
+  const NAMES = ['recipes','ingredients'], SCHEMA = 3;
+  const clone = v => JSON.parse(JSON.stringify(v));
+  const shaped = d => !!d && typeof d==='object' && !!d.recipes && typeof d.recipes==='object' && !!d.ingredients && typeof d.ingredients==='object';
+  const getJson = async url => { const r = await fetch(url, {cache:'no-store'}); if (!r.ok) throw new Error('http '+r.status); return r.json(); };
+  const wrap = r => new Promise((res,rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const done = t => new Promise((res,rej) => { t.oncomplete = () => res(); t.onerror = t.onabort = () => rej(t.error); });
+  const tomb = cur => Object.assign({}, clone(cur), {deleted:true, updatedAt:Date.now()});
+
+  async function init(opts) {
+    opts = opts || {};
+    const cache = {recipes:{}, ingredients:{}}, subs = {recipes:[], ingredients:[]};
+    const snap = n => ({docs: Object.entries(cache[n]).filter(([,v]) => !v.deleted).map(([id,v]) => ({id, data: () => clone(v)}))});
+    const notify = n => subs[n].forEach(f => { try { f(snap(n)); } catch(e){} });
+    const base = {
+      collection: n => ({ onSnapshot: f => { subs[n].push(f); Promise.resolve().then(() => f(snap(n))); } }),
+      exportAll: () => ({app:'gt-recipe-book', version:SCHEMA, exportedAt:new Date().toISOString(), recipes:clone(cache.recipes), ingredients:clone(cache.ingredients)})
+    };
+    const setCache = d => { NAMES.forEach(n => { cache[n] = clone(d[n] || {}); }); };
+
+    // ---------- 1. server mode ----------
+    let d = null;
+    try { d = await getJson('api/data'); if (!shaped(d)) d = null; } catch(e) { d = null; }
+    if (d) {
+      let rev = d.rev, busy = 0, polling = false, down = 0;
+      const send = async (method, url, body) => {
+        busy++;
+        try {
+          const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)});
+          if (!r.ok){ const e = new Error('http '+r.status); e.code = r.status===400 ? 'invalid_argument' : 'http_'+r.status; throw e; }
+          rev = (await r.json()).rev;
+        } finally { busy--; }
+      };
+      if (hasLegacyKeys(d)) {          // file written by an older version: give every item a permanent id (the server keeps a backup first)
+        const m = sanitizeAll(toV3(d)).data; setCache(m);
+        try { await send('POST', 'api/replace', m); } catch(e) { opts.onStatus && opts.onStatus('Could not update data/recipes.json to the new format. Is the server read-only?'); }
+      } else setCache(d);
+      const poll = async () => {
+        if (polling || busy) return; polling = true;
+        try {
+          const j = await getJson('api/data?rev='+rev);
+          if (down){ down = 0; opts.onStatus && opts.onStatus(null); }
+          if (!j.same && shaped(j) && !busy){ rev = j.rev; setCache(j); NAMES.forEach(notify); }
+        } catch(e){ if (++down === 2 && opts.onStatus) opts.onStatus('Cannot reach the recipe server. Changes cannot be saved until it is running again.'); }
+        polling = false;
+      };
+      setInterval(() => { if (!document.hidden) poll(); }, 3000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+      addEventListener('focus', poll);
+      return Object.assign({mode:'server', note:null}, base, {
+        doc: path => { const [n,id] = path.split('/'); const u = 'api/doc/'+n+'/'+encodeURIComponent(id); return {
+          set: async v => { const val = clone(v); if (!val.updatedAt) val.updatedAt = Date.now(); await send('PUT', u, val); cache[n][id] = val; notify(n); },
+          delete: async () => { const cur = cache[n][id]; if (!cur) return; const val = tomb(cur); await send('PUT', u, val); cache[n][id] = val; notify(n); } }; },
+        importData: async data => {
+          try { const j = await getJson('api/data'); if (shaped(j) && !busy){ rev = j.rev; setCache(j); } } catch(e){}
+          const m = mergeInto(cache, data);
+          if (m.changed.recipes.size || m.changed.ingredients.size){ await send('POST', 'api/replace', m.next); setCache(m.next); NAMES.forEach(notify); }
+          return m.stats;
+        }
+      });
+    }
+
+    // ---------- 2. local mode ----------
+    const bc = 'BroadcastChannel' in self ? new BroadcastChannel('gt-recipe-book') : null;
+    let idb = null, note = null;
+    const ping = () => bc && bc.postMessage('reload');
+    const loadAll = async n => {
+      const out = {}, s = idb.transaction(n).objectStore(n);
+      await new Promise((res,rej) => { const c = s.openCursor(); c.onerror = () => rej(c.error);
+        c.onsuccess = () => { const k = c.result; if (k){ out[k.key] = k.value; k.continue(); } else res(); }; });
+      cache[n] = out;
+    };
+    const writeAll = async next => {          // replace everything (used once to give older data permanent ids)
+      if (idb){
+        const t = idb.transaction([...NAMES,'meta'], 'readwrite');
+        NAMES.forEach(n => { const s = t.objectStore(n); s.clear(); Object.entries(next[n]).forEach(([k,v]) => s.put(v,k)); });
+        t.objectStore('meta').put(SCHEMA,'schema'); await done(t);
+      }
+      setCache(next); NAMES.forEach(notify); ping();
+    };
+    const persist = async (next, changed) => {   // write only the docs that changed
+      if (idb){
+        const t = idb.transaction(NAMES, 'readwrite');
+        NAMES.forEach(n => changed[n].forEach(id => t.objectStore(n).put(next[n][id], id)));
+        await done(t);
+      }
+      NAMES.forEach(n => { cache[n] = next[n]; if (changed[n].size) notify(n); }); ping();
+    };
+    try {
+      idb = await new Promise((res,rej) => { const r = indexedDB.open('gt-recipe-book', 1);
+        r.onupgradeneeded = () => { NAMES.concat('meta').forEach(n => r.result.createObjectStore(n)); };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked')); });
+      await Promise.all(NAMES.map(loadAll));
+      if (await wrap(idb.transaction('meta').objectStore('meta').get('schema')) !== SCHEMA) await writeAll(sanitizeAll(toV3(cache)).data);
+      navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(()=>{});
+      note = 'Saved on this device only. Run server.py to keep recipes in data/recipes.json and share them between devices.';
+    } catch(e){ idb = null; note = 'This browser is blocking storage, so changes will be lost when you close the page.'; }
+    if (bc) bc.onmessage = async () => { if (idb){ await Promise.all(NAMES.map(loadAll)); NAMES.forEach(notify); } };
+    const one = (n, id, val) => { const next = {recipes:cache.recipes, ingredients:cache.ingredients}, ch = {recipes:new Set(), ingredients:new Set()};
+      next[n] = Object.assign({}, cache[n], {[id]: val}); ch[n].add(id); return persist(next, ch); };
+    return Object.assign({mode: idb ? 'local' : 'memory', note}, base, {
+      doc: path => { const [n,id] = path.split('/'); return {
+        set: async v => { const val = clone(v); if (!val.updatedAt) val.updatedAt = Date.now(); await one(n, id, val); },
+        delete: async () => { const cur = cache[n][id]; if (cur) await one(n, id, tomb(cur)); } }; },
+      importData: async data => { const m = mergeInto(cache, data); await persist(m.next, m.changed); return m.stats; }
+    });
+  }
+  return {init};
+})();
+
+const clean = s => s.replace(/\s*\(SF\)\s*$/i,'').trim();
+const title = s => clean(s).toLowerCase().replace(/(^|[\s(\/-])([a-z])/g,(m,a,b)=>a+b.toUpperCase());
+const norm = s => s.trim().replace(/\s+/g,' ').toUpperCase();
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = id => document.getElementById(id);
+
+// Data model (shared db). Everything points at stable ids, so renaming never breaks a link.
+//   recipes/{id}      {name, kind:'Dish'|'Prep', batch, bu, ings:[{t:'i'|'r', id, q, u}], method:[], editedAt, updatedAt}
+//   ingredients/{id}  {name, updatedAt}      (raw items: anything that is not a prep recipe)
+// ids are random UUIDs created once and never change; updatedAt decides which copy wins when backups are merged.
+// An ingredient line is {t:'i', id} for a raw ingredient or {t:'r', id} for a prep recipe.
+let RECIPES = [], INGS = [], bySlug = {}, ingById = {}, loadedR = false, loadedI = false;
+let db = null, canEdit = false, usedIn = {}, ingUse = {};
+const loaded = () => loadedR && loadedI;
+function reindex(){
+  bySlug = {}; ingById = {};
+  RECIPES.forEach(r => { bySlug[r.slug] = r; });
+  INGS.forEach(i => { ingById[i.id] = i; });
+}
+const refName = x => { const o = x.t==='r' ? bySlug[x.id] : ingById[x.id]; return o ? o.name : '(removed item)'; };
+function rebuildUsed(){
+  usedIn = {}; ingUse = {};
+  RECIPES.forEach(r => r.ings.forEach(x => {
+    const m = x.t==='r' ? usedIn : ingUse;
+    (m[x.id] = m[x.id] || new Set()).add(r.slug);
+  }));
+}
+const names = set => [...(set||[])].map(s => bySlug[s]).filter(Boolean).sort((a,b)=>clean(a.name).localeCompare(clean(b.name)));
+
+let filter='all', query='', current=null, curIng=null, mult=1, editing=false, draft=null, saving=false, errMsg='', confirmDel=false;
+
+function fmt(n){ if (n===null||n===undefined||isNaN(n)) return '–'; return (Math.round(n*100)/100).toLocaleString('en-IN',{maximumFractionDigits:2}); }
+function qty(q,u,m){
+  if (q===null||q===undefined) return ['–', ({GMS:'g',ML:'ml',NOS:'nos',PORTION:'portion'})[u]||''];
+  const v = q*m;
+  if (u==='GMS') return v>=1000 ? [fmt(v/1000),'kg'] : [fmt(v),'g'];
+  if (u==='ML')  return v>=1000 ? [fmt(v/1000),'l']  : [fmt(v),'ml'];
+  if (u==='NOS') return [fmt(v),'nos'];
+  if (u==='PORTION') return [fmt(v), v===1?'portion':'portions'];
+  return [fmt(v),(u||'').toLowerCase()];
+}
+function batchLabel(r,m){
+  const u = r.bu==='PORTION' ? ['portion','portions'] : r.bu==='KG' ? ['kg','kg'] : r.bu==='LTR' ? ['l','l'] : [r.bu.toLowerCase(),r.bu.toLowerCase()];
+  const v = (r.batch||0)*m; return [fmt(v), v===1?u[0]:u[1]];
+}
+
+function renderList(){
+  const q = query.trim().toLowerCase();
+  let html = '', last = '', n = 0, rows;
+  if (filter==='Ing'){
+    rows = INGS.filter(i => !q || i.name.toLowerCase().includes(q)).sort((a,b)=>clean(a.name).localeCompare(clean(b.name)));
+    $('count').textContent = rows.length + ' ingredients';
+    rows.forEach(i => {
+      const L = clean(i.name)[0].toUpperCase(); if (L!==last){ html += '<div class="letter">'+esc(L)+'</div>'; last=L; }
+      const c = ingUse[i.id] ? ingUse[i.id].size : 0;
+      html += '<a class="row" href="#ing/'+i.id+'"'+(curIng&&curIng.id===i.id?' aria-current="true"':'')+'><span>'+esc(title(i.name))+'</span><span class="cnt">'+(c?c+' recipe'+(c===1?'':'s'):'unused')+'</span></a>';
+    });
+  } else {
+    rows = RECIPES.filter(r => (filter==='all'||r.kind===filter) &&
+        (!q || (r.name+' '+r.ings.map(refName).join(' ')).toLowerCase().includes(q)))
+      .sort((a,b)=>clean(a.name).localeCompare(clean(b.name)));
+    $('count').textContent = rows.length + ' recipes';
+    rows.forEach(r => {
+      const L = clean(r.name)[0].toUpperCase(); if (L!==last){ html += '<div class="letter">'+esc(L)+'</div>'; last=L; }
+      let hit = '';
+      if (q && !r.name.toLowerCase().includes(q)){
+        const x = r.ings.find(x => refName(x).toLowerCase().includes(q));
+        if (x) hit = '<span class="hit">has '+esc(title(refName(x)))+'</span>';
+      }
+      html += '<a class="row" href="#'+r.slug+'"'+(current&&current.slug===r.slug?' aria-current="true"':'')+'><span>'+esc(title(r.name))+hit+'</span><span style="display:flex;gap:4px">'+(r.edited?'<span class="dot">Edited</span>':'')+(r.kind==='Prep'?'<span class="tag">Prep</span>':'')+'</span></a>';
+    });
+  }
+  if (!rows.length){
+    $('list').innerHTML = '<div class="empty">'+(!loaded() ? 'Loading…' : !db ? 'The recipe store is unavailable. Open this page while signed in.'
+      : (filter==='Ing' ? !INGS.length : !RECIPES.length) ? 'Nothing here yet. Add one with the New button, or open Backup & data below to import a backup file.' : 'No match for “'+esc(query)+'”.')+'</div>';
+    return;
+  }
+  $('list').innerHTML = html;
+}
+
+function viewHtml(r){
+  const [bv,bu] = batchLabel(r,mult);
+  const rowsHtml = r.ings.map(x => {
+    const [v,u] = qty(x.q,x.u,mult), nm = title(refName(x));
+    const cell = x.t==='r' && bySlug[x.id] ? '<a href="#'+x.id+'">'+esc(nm)+'</a><span class="sub">Prep recipe</span>' : esc(nm);
+    return '<tr><td class="q">'+v+'</td><td class="u">'+esc(u)+'</td><td class="n">'+cell+'</td></tr>';
+  }).join('');
+  const us = names(usedIn[r.slug]);
+  const used = us.length ? '<h2>Used in</h2><div class="used">'+us.map(o=>'<a href="#'+o.slug+'">'+esc(title(o.name))+'</a>').join('')+'</div>' : '';
+  const steps = r.method.length
+    ? '<ol class="method">'+r.method.map(s=>'<li><div>'+esc(s)+'</div></li>').join('')+'</ol>'
+    : '<p class="nomethod">No method written yet.'+(canEdit?' Use Edit to add the steps.':'')+'</p>';
+  const when = r.edited && r.editedAt ? ' <span class="edited">· edited '+new Date(r.editedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+'</span>' : '';
+  return '<button class="back" id="back">← All recipes</button>'+
+    '<div class="kicker"><span>'+(r.kind==='Prep'?'Prep recipe':'Dish')+'</span>'+when+'</div>'+
+    '<h1>'+esc(title(r.name))+'</h1>'+
+    (canEdit?'<div class="bar"><button class="btn" id="edit">Edit recipe</button></div>':'')+
+    '<div class="makes"><div class="stat"><b>'+bv+'</b><span>'+esc(bu)+' made</span></div>'+
+    '<div class="stat"><b>'+r.ings.length+'</b><span>ingredients</span></div>'+
+    '<div class="scale"><label for="mult">Scale ×</label>'+
+      [0.5,1,2,5,10].map(x=>'<button class="chip" data-m="'+x+'" aria-pressed="'+(x===mult)+'">'+x+'</button>').join('')+
+      '<input type="number" id="mult" min="0.1" step="0.5" value="'+mult+'" aria-label="Scale multiplier"></div></div>'+
+    '<h2>Ingredients</h2><div style="overflow-x:auto"><table>'+rowsHtml+'</table></div>'+
+    '<h2>Method</h2>'+steps+used;
+}
+
+function ingViewHtml(i){
+  const us = names(ingUse[i.id]);
+  return '<button class="back" id="back">← All ingredients</button>'+
+    '<div class="kicker"><span>Ingredient</span></div><h1>'+esc(title(i.name))+'</h1>'+
+    (canEdit?'<div class="bar"><button class="btn" id="edit">Rename or delete</button></div>':'')+
+    '<h2>Used in'+(us.length?' ('+us.length+')':'')+'</h2>'+
+    (us.length ? '<div class="used">'+us.map(o=>'<a href="#'+o.slug+'">'+esc(title(o.name))+'</a>').join('')+'</div>' : '<p class="nomethod">Not used in any recipe.</p>');
+}
+
+function saveBar(label, canDelete){
+  return '<div class="savebar"><button class="btn pri" id="save"'+(saving?' disabled':'')+'>'+(saving?'Saving…':label)+'</button><button class="btn" id="cancel"'+(saving?' disabled':'')+'>Cancel</button>'+
+    (canDelete?'<span style="flex:1"></span><button class="btn warn" id="del"'+(saving?' disabled':'')+'>'+(confirmDel?'Confirm: delete':'Delete')+'</button>':'')+'</div>';
+}
+const errHtml = () => errMsg ? '<p class="err" role="alert">'+esc(errMsg)+'</p>' : '';
+
+function ingEditHtml(){
+  return '<div class="edit"><div class="kicker"><span>'+(draft.isNew?'New ingredient':'Rename ingredient')+'</span></div>'+
+    '<div class="eb"><label style="flex:1;min-width:200px">Name<input type="text" id="dname" value="'+esc(draft.name)+'" style="width:100%;font-family:inherit"></label></div>'+
+    (draft.isNew?'':'<p class="hint">Renaming updates every recipe that uses this ingredient.</p>')+errHtml()+saveBar(draft.isNew?'Add ingredient':'Save name', !draft.isNew)+'</div>';
+}
+
+function editHtml(){
+  const opts = INGS.map(i=>'<option value="'+esc(title(i.name))+'">').join('') +
+    RECIPES.filter(r=>r.kind==='Prep'&&r.slug!==draft.id).map(r=>'<option value="'+esc(title(r.name))+'" label="Prep recipe">').join('');
+  const ing = draft.ings.map((i,k)=>
+    '<div class="erow"><input class="q" type="number" step="any" min="0" inputmode="decimal" data-k="'+k+'" data-f="q" value="'+(i.q===null?'':i.q)+'" aria-label="Quantity">'+
+    '<select class="un" data-k="'+k+'" data-f="u" aria-label="Unit">'+[['GMS','g'],['ML','ml'],['NOS','nos'],['PORTION','portion']].map(o=>'<option value="'+o[0]+'"'+(i.u===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'+
+    '<input class="nm" type="text" list="ingopts" data-k="'+k+'" data-f="n" value="'+esc(i.text)+'" aria-label="Ingredient" placeholder="Ingredient or prep recipe">'+
+    '<button class="btn sm xx" data-del="'+k+'" aria-label="Remove ingredient">✕</button></div>').join('');
+  const steps = draft.method.map((s,k)=>
+    '<div class="steprow"><div class="no">'+(k+1)+'</div><textarea data-k="'+k+'" data-f="m" aria-label="Step '+(k+1)+'">'+esc(s)+'</textarea>'+
+    '<div class="mv"><button class="btn sm" data-up="'+k+'" aria-label="Move step up"'+(k===0?' disabled':'')+'>↑</button><button class="btn sm" data-dn="'+k+'" aria-label="Move step down"'+(k===draft.method.length-1?' disabled':'')+'>↓</button><button class="btn sm" data-ms="'+k+'" aria-label="Remove step">✕</button></div></div>').join('');
+  return '<div class="edit"><div class="kicker"><span>'+(draft.isNew?'New recipe':'Editing')+'</span></div>'+
+    '<div class="eb"><label style="flex:1;min-width:200px">Name<input type="text" id="dname" value="'+esc(draft.name)+'" placeholder="e.g. Butter Chicken" style="width:100%;font-family:inherit;text-transform:none"></label>'+
+    '<label>Type<select id="dkind">'+[['Dish','Dish'],['Prep','Prep recipe']].map(o=>'<option value="'+o[0]+'"'+(draft.kind===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label></div>'+
+    '<div class="eb"><label>Makes<input type="number" step="any" min="0" id="dbatch" value="'+(draft.batch===null?'':draft.batch)+'"></label>'+
+    '<label>Unit<select id="dbu">'+[['PORTION','portions'],['KG','kg'],['LTR','litres']].map(o=>'<option value="'+o[0]+'"'+(draft.bu===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label></div>'+
+    '<h2>Ingredients</h2><p class="hint">Pick an existing ingredient or prep recipe, or type a new ingredient name to create it. Quantities are for the amount above.</p>'+ing+
+    '<datalist id="ingopts">'+opts+'</datalist><button class="btn sm" id="addi">+ Add ingredient</button>'+
+    '<h2>Method</h2>'+(steps||'<p class="nomethod">No steps yet.</p>')+'<button class="btn sm" id="adds">+ Add step</button>'+
+    errHtml()+saveBar('Save changes', !draft.isNew)+'</div>';
+}
+
+function renderCard(){
+  const card = $('card');
+  if (editing && draft){ card.innerHTML = draft.type==='ing' ? ingEditHtml() : editHtml(); return; }
+  const o = filter==='Ing' ? curIng : current;
+  if (!o){ card.innerHTML = loaded() && canEdit && !(filter==='Ing'?INGS:RECIPES).length ? '<p class="nomethod">Nothing here yet. Add a recipe with the New button, or import a backup under Backup &amp; data.</p>' : ''; return; }
+  card.innerHTML = filter==='Ing' ? ingViewHtml(o) : viewHtml(o);
+  if ($('back')) $('back').onclick = () => { history.pushState('', '', location.pathname+location.search); route(); };
+  if ($('edit')) $('edit').onclick = startEdit;
+}
+
+function startEdit(){
+  if (filter==='Ing'){ draft = {type:'ing', isNew:false, id:curIng.id, name:title(curIng.name), orig:curIng.name}; }
+  else { const r = current;
+    draft = {type:'rec', isNew:false, id:r.slug, name:title(r.name), orig:r.name, kind:r.kind, batch:r.batch, bu:r.bu,
+      ings:r.ings.map(x=>({t:x.t,id:x.id,q:x.q,u:x.u,text:title(refName(x)),dirty:false})), method:r.method.slice()}; }
+  editing = true; errMsg=''; confirmDel=false; renderCard(); $('card').scrollTop = 0;
+}
+function startNew(){
+  document.body.classList.add('show');
+  draft = filter==='Ing' ? {type:'ing', isNew:true, id:null, name:'', orig:null}
+    : {type:'rec', isNew:true, id:null, name:'', orig:null, kind:'Dish', batch:1, bu:'PORTION', ings:[{t:null,id:null,q:null,u:'GMS',text:'',dirty:true}], method:[]};
+  editing = true; errMsg=''; confirmDel=false; renderCard(); $('card').scrollTop = 0; $('dname').focus();
+}
+function stopEdit(){ editing=false; draft=null; saving=false; errMsg=''; confirmDel=false; route(); }
+
+const failMsg = e => e && e.code==='invalid_argument' ? 'The server rejected this change. Check the recipe and try again.'
+  : 'Could not save. Is the recipe server still running?';
+const fail = m => { errMsg = m; renderCard(); };
+
+async function saveIng(){
+  const name = draft.name.trim().replace(/\s+/g,' ');
+  if (!name) return fail('Give the ingredient a name.');
+  const clash = INGS.find(i => norm(i.name)===norm(name) && i.id!==draft.id);
+  if (clash) return fail('An ingredient with this name already exists.');
+  const id = draft.isNew ? uuid() : draft.id;
+  saving = true; errMsg=''; renderCard();
+  try {
+    const nm = !draft.isNew && norm(name)===norm(title(draft.orig)) ? draft.orig : name;
+    await db.doc('ingredients/'+id).set({name:nm, updatedAt:Date.now()});
+    INGS = INGS.filter(i=>i.id!==id).concat({id, name:nm}); reindex();
+    curIng = ingById[id]; const wasNew = draft.isNew; editing=false; draft=null; saving=false;
+    if (wasNew) location.hash = 'ing/'+id; else route();
+  } catch(e){ saving=false; fail(failMsg(e)); }
+}
+
+async function save(){
+  if (saving) return;
+  if (draft.type==='ing') return saveIng();
+  const typed = draft.name.trim().replace(/\s+/g,' ');
+  const name = !draft.isNew && norm(typed)===norm(title(draft.orig)) ? draft.orig : typed;
+  const id = draft.isNew ? uuid() : draft.id;
+  if (!name) return fail('Give the recipe a name.');
+  const clash = RECIPES.find(r => norm(r.name)===norm(name) && r.slug!==id);
+  if (clash) return fail('A recipe with this name already exists.');
+  const rows = draft.ings.filter(i => i.text.trim());
+  if (!rows.length) return fail('Add at least one ingredient before saving.');
+  if (draft.kind!=='Prep' && usedIn[id] && usedIn[id].size) return fail('This recipe is used as a prep in other recipes, so it must stay a Prep recipe.');
+  // Resolve typed names to ids; untouched rows keep their existing link.
+  const fresh = {}, lines = [];
+  for (const i of rows){
+    let ref = (!i.dirty && i.t) ? {t:i.t, id:i.id} : null;
+    if (!ref){
+      const u = norm(i.text), c = norm(clean(i.text));
+      const prep = [u, c+' (SF)', c].map(k => RECIPES.find(r => r.kind==='Prep' && r.slug!==id && norm(r.name)===k)).find(Boolean);
+      if (prep) ref = {t:'r', id:prep.slug};
+      else {
+        const ex = INGS.find(g => norm(g.name)===u) || fresh[u];
+        if (ex) ref = {t:'i', id:ex.id};
+        else { const nid = uuid();
+          fresh[u] = {id:nid, name:i.text.trim().replace(/\s+/g,' ')}; ref = {t:'i', id:nid}; }
+      }
+    }
+    if (ref.t==='r' && ref.id===id) return fail('A prep recipe cannot contain itself.');
+    lines.push({t:ref.t, id:ref.id, q:i.q, u:i.u});
+  }
+  const out = { name, kind:draft.kind, batch:draft.batch, bu:draft.bu, ings:lines, method:draft.method.map(s=>s.trim()).filter(Boolean), editedAt:Date.now(), updatedAt:Date.now() };
+  saving = true; errMsg=''; renderCard();
+  try {
+    for (const g of Object.values(fresh)) await db.doc('ingredients/'+g.id).set({name:g.name, updatedAt:Date.now()});
+    await db.doc('recipes/'+id).set(out);
+    INGS = INGS.concat(Object.values(fresh));
+    const rec = Object.assign({}, out, {slug:id, edited:true});
+    RECIPES = RECIPES.filter(r=>r.slug!==id).concat(rec); reindex(); rebuildUsed();
+    const wasNew = draft.isNew; current = rec; editing=false; draft=null; saving=false;
+    if (wasNew) location.hash = id; else route();
+  } catch(e){ saving=false; fail(failMsg(e)); }
+}
+
+async function removeItem(){
+  const isIng = draft.type==='ing';
+  const users = names(isIng ? ingUse[draft.id] : usedIn[draft.id]);
+  if (users.length){
+    confirmDel = false;
+    return fail((isIng?'This ingredient':'This prep recipe')+' is used in '+users.length+' recipe'+(users.length===1?'':'s')+' ('+users.slice(0,4).map(o=>title(o.name)).join(', ')+(users.length>4?', …':'')+'). Remove it from those first.');
+  }
+  if (!confirmDel){ confirmDel=true; renderCard(); return; }
+  saving = true; renderCard();
+  try {
+    await db.doc((isIng?'ingredients/':'recipes/')+draft.id).delete();
+    if (isIng){ INGS = INGS.filter(i=>i.id!==draft.id); curIng = null; }
+    else { RECIPES = RECIPES.filter(r=>r.slug!==draft.id); current = null; }
+    reindex(); rebuildUsed(); editing=false; draft=null; saving=false;
+    history.pushState('', '', location.pathname+location.search); route();
+  } catch(e){ saving=false; fail('Could not delete. Try again.'); }
+}
+
+const card = $('card');
+card.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.m){ mult=+b.dataset.m; renderCard(); return; }
+  if (!editing) return;
+  const d = b.dataset;
+  if (b.id==='save') save();
+  else if (b.id==='cancel'){ if (draft.isNew) document.body.classList.remove('show'); stopEdit(); }
+  else if (b.id==='del') removeItem();
+  else if (b.id==='addi'){ draft.ings.push({t:null,id:null,q:null,u:'GMS',text:'',dirty:true}); renderCard(); const r=card.querySelectorAll('.erow .nm'); r[r.length-1].focus(); }
+  else if (b.id==='adds'){ draft.method.push(''); renderCard(); const t=card.querySelectorAll('.steprow textarea'); t[t.length-1].focus(); }
+  else if (d.del!==undefined){ draft.ings.splice(+d.del,1); renderCard(); }
+  else if (d.ms!==undefined){ draft.method.splice(+d.ms,1); renderCard(); }
+  else if (d.up!==undefined){ const k=+d.up; [draft.method[k-1],draft.method[k]]=[draft.method[k],draft.method[k-1]]; renderCard(); }
+  else if (d.dn!==undefined){ const k=+d.dn; [draft.method[k+1],draft.method[k]]=[draft.method[k],draft.method[k+1]]; renderCard(); }
+});
+card.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id==='mult'){ const v=parseFloat(t.value); if (v>0){ mult=v; renderCard(); const n=$('mult'); n.focus(); n.setSelectionRange?.(n.value.length,n.value.length); } return; }
+  if (!editing) return;
+  if (t.id==='dname'){ draft.name = t.value; return; }
+  if (t.id==='dbatch'){ draft.batch = t.value===''?null:parseFloat(t.value); return; }
+  const k=+t.dataset.k, f=t.dataset.f;
+  if (f==='q') draft.ings[k].q = t.value===''?null:parseFloat(t.value);
+  else if (f==='n'){ draft.ings[k].text = t.value; draft.ings[k].dirty = true; }
+  else if (f==='m') draft.method[k] = t.value;
+});
+card.addEventListener('change', e => {
+  const t=e.target; if (!editing) return;
+  if (t.id==='dbu') draft.bu = t.value;
+  else if (t.id==='dkind') draft.kind = t.value;
+  else if (t.dataset.f==='u') draft.ings[+t.dataset.k].u = t.value;
+});
+
+function setFilter(f){
+  filter = f;
+  document.querySelectorAll('.chip[data-f]').forEach(c=>c.setAttribute('aria-pressed', c.dataset.f===f));
+  $('new').textContent = f==='Ing' ? '+ New ingredient' : '+ New recipe';
+}
+function route(){
+  if (editing) return;
+  const h = decodeURIComponent(location.hash.replace('#',''));
+  const wide = matchMedia('(min-width:860px)').matches;
+  let shown = false;
+  if (h.startsWith('ing/')){
+    if (filter!=='Ing') setFilter('Ing');
+    curIng = ingById[h.slice(4)] || null; shown = !!curIng;
+    if (!curIng && wide) curIng = INGS.slice().sort((a,b)=>clean(a.name).localeCompare(clean(b.name)))[0] || null;
+  } else {
+    if (filter==='Ing' && bySlug[h]) setFilter('all');
+    current = bySlug[h] || null; shown = !!current;
+    if (filter!=='Ing' && !current && wide) current = RECIPES.filter(r=>r.kind==='Dish').sort((a,b)=>a.name.localeCompare(b.name))[0] || RECIPES[0] || null;
+    if (filter==='Ing' && !curIng && wide) curIng = INGS.slice().sort((a,b)=>clean(a.name).localeCompare(clean(b.name)))[0] || null;
+  }
+  document.body.classList.toggle('show', shown && (filter==='Ing' ? !!curIng : !!current));
+  mult = 1; renderList(); renderCard();
+  const a = document.querySelector('.row[aria-current=true]'); if (a && wide) a.scrollIntoView({block:'nearest'});
+  if (!shown) window.scrollTo(0,0);
+}
+
+$('q').addEventListener('input', e => { query = e.target.value; renderList(); });
+document.querySelectorAll('.chip[data-f]').forEach(b=>b.addEventListener('click',()=>{
+  if (editing) return; setFilter(b.dataset.f);
+  if (location.hash){ history.pushState('', '', location.pathname+location.search); }
+  route();
+}));
+$('new').addEventListener('click', () => { if (!editing) startNew(); });
+addEventListener('hashchange', () => { if (editing && !saving){ editing=false; draft=null; errMsg=''; } route(); });
+matchMedia('(min-width:860px)').addEventListener('change', route);
+route();
+
+// Load recipes from data/recipes.json (via the local server) or, if there is no server, from this device.
+(async () => {
+  const banner = msg => { const n = $('note'); n.hidden = !msg; n.textContent = msg || ''; };
+  db = await Store.init({onStatus: banner});
+  canEdit = true;
+  banner(db.note);
+  $('foothint').textContent = db.mode==='server'
+    ? 'Recipes are stored in data/recipes.json on the computer running the app. Every device using this address sees the same data. Importing a backup merges it in (matched by id, newest edit wins) and never removes your recipes.'
+    : 'Recipes are stored on this device only. Export a backup to copy them to another device. Importing a backup merges it in (matched by id, newest edit wins) and never removes your recipes.';
+  let opened = false;
+  const refresh = () => {
+    if (!loaded()) return;
+    reindex(); rebuildUsed();
+    if (!opened){ opened = true; if (!RECIPES.length && !INGS.length) document.querySelector('.foot').open = true; }
+    if (editing){ renderList(); return; }
+    const m = mult; route(); if (m!==mult){ mult=m; renderCard(); }
+  };
+  db.collection('ingredients').onSnapshot(snap => {
+    INGS = snap.docs.map(d => { const v = d.data(); return v && v.name ? {id:d.id, name:v.name} : null; }).filter(Boolean);
+    loadedI = true; refresh();
+  });
+  db.collection('recipes').onSnapshot(snap => {
+    RECIPES = snap.docs.map(d => { const v = d.data(); return v && v.name && Array.isArray(v.ings)
+      ? Object.assign({}, v, {slug:d.id, ings:v.ings.filter(x=>x && (x.t==='i'||x.t==='r') && x.id), method:Array.isArray(v.method)?v.method:[], edited:v.editedAt>0}) : null; }).filter(Boolean);
+    loadedR = true; refresh();
+  });
+
+  $('exp').onclick = () => {
+    const blob = new Blob([JSON.stringify(db.exportAll(), null, 1)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'gt-recipe-book-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  $('imp').onclick = () => $('file').click();
+  $('file').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    let d;
+    try { d = JSON.parse(await f.text()); } catch(err){ d = null; }
+    if (!d || typeof d.recipes !== 'object' || typeof d.ingredients !== 'object' || !d.recipes || !d.ingredients){
+      alert('That file is not a valid recipe book backup.'); return; }
+    if (editing){ editing = false; draft = null; }
+    let s;
+    try { s = await db.importData(d); } catch(err){ alert('The import could not be saved. Is the recipe server still running?'); return; }
+    const line = (name, x) => name+': '+x.added+' new, '+x.updated+' updated'+(x.older ? ', '+x.older+' kept (your copy here is newer)' : '')+'.';
+    alert('Backup merged. Nothing on this device was removed.\n\n'+line('Recipes', s.recipes)+'\n'+line('Ingredients', s.ingredients)
+      +(s.restored ? '\n'+s.restored+' item(s) deleted elsewhere were kept because a recipe still uses them.' : '')
+      +(s.conflicts ? '\n'+s.conflicts+' name(s) now exist twice because they were created separately on different devices. They are kept as separate entries; rename or delete one to tidy up.' : '')
+      +(s.skipped ? '\n'+s.skipped+' unreadable entr'+(s.skipped===1?'y was':'ies were')+' skipped.' : ''));
+    route();
+  };
+})();
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body></html>
